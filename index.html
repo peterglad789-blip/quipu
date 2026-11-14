@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUIPU Mission Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Cesium.js"></script>
+<style>
+:root{
+  --bg:#07060B; --panel:rgba(15,12,21,.9); --line:#2E2540; --ink:#F5EFE6; --muted:#B4AA9C;
+  --accent:#F2A65A; --water:#6FC3C9; --ok:#4FB477; --warn:#E8B43A; --bad:#E5533D; --hud:#7CF2C5;
+}
+:root[data-theme="light"],:root[data-theme="dark"]{--bg:#07060B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#07060B}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+#globe{position:fixed;inset:0}
+.cesium-viewer,.cesium-viewer-cesiumWidgetContainer,.cesium-widget,.cesium-widget canvas{width:100%;height:100%;display:block}
+.cesium-viewer-bottom,.cesium-widget-credits{display:none!important}
+button{font:600 13px Inter,sans-serif;color:var(--ink);background:#1E1729;border:1px solid var(--line);border-radius:8px;padding:9px 12px;min-height:40px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:#1A1208;border-color:var(--accent)}
+button.on{border-color:var(--water);color:var(--water)}
+a{color:var(--water)}
+
+header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:14px;padding:10px 16px;background:linear-gradient(#07060Bf2,#07060B00)}
+.logo{font:700 22px 'Space Grotesk',sans-serif;letter-spacing:5px;display:flex;align-items:center;gap:10px}
+.logo svg{flex:none}
+.logo small{display:block;font:500 9px 'JetBrains Mono',monospace;letter-spacing:2px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;min-height:34px;padding:6px 14px}
+.seg button.active{background:var(--accent);color:#1A1208}
+nav{display:flex;gap:2px;flex-wrap:wrap}
+nav button{background:transparent;border-color:transparent;min-height:34px;padding:6px 10px}
+nav button.active{border-color:var(--line);background:#1E172999}
+.spacer{flex:1}
+.pill{display:flex;align-items:center;gap:8px;font:600 11px 'JetBrains Mono',monospace;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);white-space:nowrap}
+.pill i{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+
+.panel{position:fixed;z-index:15;background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:16px;overflow-y:auto}
+#plan{top:76px;right:16px;bottom:16px;width:370px}
+#layers{top:76px;left:16px;width:260px;max-height:calc(100% - 92px)}
+.page{top:76px;left:16px;bottom:16px;width:min(560px,calc(100% - 32px));display:none}
+.page.wide{width:min(980px,calc(100% - 32px));left:50%;transform:translateX(-50%)}
+h2{font:700 12px 'Space Grotesk',sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+h3{font:700 16px 'Space Grotesk',sans-serif;margin:0 0 4px}
+p{margin:0}
+.muted{color:var(--muted);font-size:12px;line-height:1.55}
+.sec{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.toggle{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;cursor:pointer}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
+.toggle em{font-style:normal;font-size:11px;color:var(--muted);margin-left:auto}
+.tag{font:600 10px 'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;white-space:nowrap;vertical-align:middle}
+.t-real{background:#4FB47733;color:#8EE0AE}
+.t-calc{background:#6FC3C933;color:#9FE0E5}
+.t-est{background:#E8B43A33;color:#F2CF73}
+.t-ilu{background:#ffffff1f;color:#D9D2C8}
+.verdict{display:flex;gap:12px;align-items:center}
+.light{width:46px;height:46px;border-radius:50%;flex:none;background:#3A2F52;box-shadow:0 0 0 4px #0008}
+.verdict b{font:700 18px 'Space Grotesk',sans-serif;display:block}
+.verdict small{color:var(--muted);font-size:12px;line-height:1.45;display:block}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.stats.three{grid-template-columns:repeat(3,1fr)}
+.stat{background:#0B0910;border-radius:8px;padding:9px}
+.stat .k{font:500 10px 'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.stat .v{font:700 18px 'Space Grotesk',sans-serif;margin-top:2px}
+.bar{height:8px;border-radius:4px;background:#0B0910;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.field{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;margin:7px 0}
+.field input{width:76px;background:#0B0910;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px;font:inherit;text-align:right}
+ol{margin:0;padding-left:20px;font-size:13px;line-height:1.45}
+ol li{margin-bottom:6px}
+ol li small{color:var(--muted);display:block}
+.mode{font-size:12px;color:var(--water);min-height:16px;margin-top:6px}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--muted);margin-top:8px}
+.legend span::before{content:"";display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:5px;vertical-align:middle;background:var(--c)}
+.warnline{margin-top:10px;font-size:12px;color:var(--warn);min-height:0}
+.box{border-radius:10px;padding:12px;background:#0B0910;border:1px solid var(--line);margin-top:10px}
+.box.alert{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad) inset}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.card{background:#0B0910;border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.card .meta{font:500 11px 'JetBrains Mono',monospace;color:var(--muted)}
+.card p{font-size:13px;line-height:1.45}
+.chart{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.crow{display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;font-size:12px}
+.ctrack{height:12px;background:#1A1522;border-radius:6px;position:relative}
+.ctrack i{position:absolute;top:0;bottom:0;border-radius:6px;background:var(--accent)}
+canvas#orrery{width:100%;height:auto;aspect-ratio:1/1;background:#05040A;border-radius:12px;display:block;max-height:58vh}
+input[type=range]{width:100%;accent-color:var(--accent)}
+
+#intro{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 24px 11vh;text-align:center;background:radial-gradient(ellipse at center,transparent 35%,#07060Bdd 78%);pointer-events:none}
+#intro > *{pointer-events:auto}
+#intro .kicker{font:500 12px 'JetBrains Mono',monospace;letter-spacing:4px;color:var(--accent)}
+#intro h1{font:700 clamp(30px,5vw,60px)/1.05 'Space Grotesk',sans-serif;margin:12px 0;max-width:900px}
+#intro p{color:var(--muted);max-width:640px;line-height:1.55}
+#intro .btns{justify-content:center;margin-top:22px}
+#intro button{min-height:48px;padding:12px 22px;font-size:15px}
+
+#hud{position:fixed;inset:0;z-index:25;pointer-events:none;display:none;font-family:'JetBrains Mono',monospace;color:var(--hud)}
+#hud .visor{position:absolute;inset:3vh 3vw;border-radius:46% 46% 40% 40%/30% 30% 55% 55%;box-shadow:0 0 0 100vmax #000000b8,inset 0 0 80px #7CF2C522;border:2px solid #7CF2C555}
+#hud .row{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:28px;font-size:14px;text-shadow:0 0 8px #000,0 0 8px #7CF2C5aa}
+#hud .top{top:9vh}#hud .bot{bottom:12vh}
+#hud .big{font-size:30px;font-weight:700}
+#hud .cell{text-align:center}
+#hud .cell small{display:block;font-size:10px;letter-spacing:2px;opacity:.8}
+#hud .cross{position:absolute;left:50%;top:50%;width:60px;height:60px;transform:translate(-50%,-50%);border:1px solid #7CF2C588;border-radius:50%}
+#hud .warn{color:#FF7A66}
+#hudExit{position:fixed;z-index:26;right:20px;top:20px;display:none}
+#timeline{position:fixed;z-index:16;left:292px;right:402px;bottom:16px;background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:12px}
+#timeline .tl-label{font:600 12px 'JetBrains Mono',monospace;white-space:nowrap;min-width:230px}
+#timeline .tl-label small{display:block;color:var(--muted);font-weight:500}
+#timeline input{flex:1}
+#timeline button{min-width:44px}
+#readout{position:fixed;z-index:16;left:292px;bottom:84px;font:500 11px 'JetBrains Mono',monospace;color:var(--muted);background:#07060Bb0;padding:4px 8px;border-radius:6px}
+canvas#profile{width:100%;height:90px;background:#0B0910;border-radius:8px;display:block;margin-top:8px}
+.chip{display:inline-block;font:600 10px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin:2px 4px 0 0}
+.site-btn{display:block;width:100%;text-align:left;margin-top:6px;font-weight:500}
+.site-btn b{display:block;font-weight:700}
+.site-btn small{color:var(--muted)}
+
+@media (max-width:980px){
+  #layers{display:none}
+  #plan{top:auto;left:8px;right:8px;width:auto;height:46vh;bottom:8px}
+  .page,.page.wide{left:8px;right:8px;width:auto;transform:none;top:120px}
+  #timeline{left:8px;right:8px;bottom:calc(46vh + 16px)}
+  #readout{display:none}
+  header{flex-wrap:wrap}
+  #solarGrid{grid-template-columns:1fr!important}
+}
+</style>
+</head>
+<body>
+<div id="globe"></div>
+
+<header>
+  <div class="logo">
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M3 5h24" stroke="#F2A65A" stroke-width="2.5" stroke-linecap="round"/><path d="M8 5v20M15 5v14M22 5v18" stroke="#F5EFE6" stroke-width="1.6"/><circle cx="8" cy="13" r="2.2" fill="#6FC3C9"/><circle cx="15" cy="10" r="2.2" fill="#F2A65A"/><circle cx="22" cy="16" r="2.2" fill="#6FC3C9"/><circle cx="8" cy="20" r="2.2" fill="#F2A65A"/></svg>
+    <div>QUIPU<small>KERVIN SPACE PROGRAMS</small></div>
+  </div>
+  <div class="seg" role="group" aria-label="Destination">
+    <button class="active" type="button" data-body="mars">● Mars</button>
+    <button type="button" data-body="moon">○ Moon</button>
+  </div>
+  <nav aria-label="Sections">
+    <button class="active" type="button" data-view="mission">Mission</button>
+    <button type="button" data-view="solar">Solar System</button>
+    <button type="button" data-view="cond">Conditions</button>
+    <button type="button" data-view="science">Science</button>
+    <button type="button" data-view="comms">Comms</button>
+    <button type="button" data-view="roadmap">Roadmap</button>
+    <button type="button" data-view="sources">Sources</button>
+  </nav>
+  <div class="spacer"></div>
+  <button type="button" id="cineBtn" title="Hide panels for presenting">Cinematic</button>
+  <div class="pill" id="pill" aria-live="polite"><i></i><span>Checking NASA DONKI…</span></div>
+</header>
+
+<section id="intro">
+  <div class="kicker">NASA SPACE APPS 2026 · INTERPLANETARY SURVIVAL GUIDE</div>
+  <h1>Can you go, do science, and make it back alive?</h1>
+  <p>On Mars there is no GPS, no rescue, and oxygen runs out. QUIPU ties data from NASA missions together, like the knotted cords Andean peoples used to record information, so an astronaut can plan a walk in Jezero Crater and know, at every step, whether they will make it home.</p>
+  <div class="btns">
+    <button class="primary" type="button" id="startBtn">Start mission</button>
+    <button type="button" id="introSolar">See the Solar System</button>
+  </div>
+</section>
+
+<!-- Layers -->
+<aside class="panel" id="layers" aria-label="Map layers">
+  <h2>Layers</h2>
+  <div id="layerList"></div>
+  <p class="muted" id="layerMsg"></p>
+  <div class="sec" id="markerToggles">
+    <label class="toggle"><input type="checkbox" id="sitesToggle" checked> NASA landing sites</label>
+    <label class="toggle"><input type="checkbox" id="hazToggle" checked> Hazards &amp; work zones</label>
+    <label class="toggle"><input type="checkbox" id="travToggle" checked> Perseverance traverse <em>real</em></label>
+    <label class="toggle"><input type="checkbox" id="lightToggle" checked> Dynamic sunlight</label>
+    <label class="toggle"><input type="checkbox" id="exagToggle" checked> Relief ×2.5</label>
+  </div>
+  <div class="sec" id="siteList">
+    <h2>Science sites</h2>
+    <div id="siteButtons"></div>
+  </div>
+  <p class="muted" id="terrainMsg" style="margin-top:10px"></p>
+  <div class="sec btns">
+    <button type="button" id="flySite">Fly to site</button>
+    <button type="button" id="flyGlobe">Whole planet</button>
+  </div>
+</aside>
+
+<!-- Planner -->
+<aside class="panel" id="plan" aria-label="Walk planner">
+  <h2 id="planTitle">Plan a Walk · Jezero</h2>
+  <div class="verdict" aria-live="polite">
+    <div class="light" id="light"></div>
+    <div><b id="vTitle">Add stops</b><small id="vText">Turn on "Add stops" and click the surface.</small></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">Distance</div><div class="v" id="sDist">0 km</div></div>
+    <div class="stat"><div class="k">Duration</div><div class="v" id="sTime">0 h 00</div></div>
+    <div class="stat"><div class="k">O₂ on return</div><div class="v" id="sO2">—</div></div>
+    <div class="stat"><div class="k">Farthest</div><div class="v" id="sFar">0 km</div></div>
+  </div>
+  <div class="bar" aria-hidden="true"><i id="barFill" style="width:0"></i></div>
+  <div class="legend"><span style="--c:var(--ok)">Safe</span><span style="--c:var(--warn)">Low margin</span><span style="--c:var(--bad)">No return</span></div>
+  <p class="warnline" id="radioWarn"></p>
+  <canvas id="profile" width="680" height="170" aria-label="Elevation profile of the planned walk"></canvas>
+  <p class="muted" id="profileText">Elevation profile appears when you plan a route.</p>
+
+  <div class="sec">
+    <div class="btns">
+      <button class="primary" type="button" id="addBtn">Add stops</button>
+      <button type="button" id="undoBtn">Undo</button>
+      <button type="button" id="clearBtn">Clear</button>
+    </div>
+    <div class="btns" style="margin-top:6px">
+      <button type="button" id="demoShort">Demo: short walk</button>
+      <button type="button" id="demoLong">Demo: expedition to Bunsen Peak</button>
+    </div>
+    <p class="mode" id="mode"></p>
+    <ol id="stops"></ol>
+  </div>
+
+  <div class="sec btns">
+    <button type="button" id="surfaceBtn">Surface view</button>
+    <button type="button" id="hudBtn">Helmet HUD</button>
+    <button type="button" id="drillBtn">Drill: suit leak</button>
+    <button type="button" id="printBtn">Print EVA report</button>
+  </div>
+
+  <div class="sec">
+    <h2>Assumptions <span class="tag t-est">ESTIMATE</span></h2>
+    <div class="field"><label for="o2">Suit oxygen (h)</label><input id="o2" type="number" min="1" max="24" step="0.5" value="8"></div>
+    <div class="field"><label for="speed">Walking speed (km/h)</label><input id="speed" type="number" min="0.3" max="6" step="0.1" value="1.5"></div>
+    <div class="field"><label for="load">Equipment load (kg)</label><input id="load" type="number" min="0" max="80" step="5" value="15"></div>
+    <div class="field"><label for="stopMin">Time per stop (min)</label><input id="stopMin" type="number" min="0" max="180" step="5" value="30"></div>
+    <div class="field"><label for="reserve">Minimum reserve (%)</label><input id="reserve" type="number" min="0" max="60" step="5" value="20"></div>
+    <div class="field"><label for="slopeMax">Max safe slope (°)</label><input id="slopeMax" type="number" min="5" max="40" step="1" value="15"></div>
+    <label class="toggle"><input type="checkbox" id="roverToggle"> Pressurized rover support (10 km/h) <em>estimate</em></label>
+    <p class="muted" id="assumpNote">8 h is NASA's design target for exploration suits. Walking speed and the load penalty (−6% speed per 10 kg) are team estimates. Gravity here: <b id="gNote">3.73 m/s² (38% of Earth)</b>; a jump goes <b id="jNote">2.6×</b> higher than on Earth.</p>
+  </div>
+</aside>
+
+<!-- Solar system -->
+<aside class="panel page wide" id="p-solar" aria-label="Solar system">
+  <h2>Inner Solar System · today <span class="tag t-calc">COMPUTED FROM JPL</span></h2>
+  <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px" id="solarGrid">
+    <div>
+      <canvas id="orrery" width="900" height="900" aria-label="Orbits of Mercury, Venus, Earth and Mars with their current positions"></canvas>
+      <label class="muted" for="dayOffset" style="display:block;margin-top:10px">Move in time: <b id="dateLabel"></b></label>
+      <input id="dayOffset" type="range" min="-400" max="1200" step="1" value="0">
+    </div>
+    <div>
+      <div class="stats">
+        <div class="stat"><div class="k">Earth–Mars</div><div class="v" id="emDist">—</div></div>
+        <div class="stat"><div class="k">Signal delay (one way)</div><div class="v" id="emDelay">—</div></div>
+        <div class="stat"><div class="k">Mars–Sun</div><div class="v" id="msDist">—</div></div>
+        <div class="stat"><div class="k">Phase angle</div><div class="v" id="phase">—</div></div>
+      </div>
+      <div class="box">
+        <h3>Next launch windows to Mars</h3>
+        <p class="muted" id="windows">Calculating…</p>
+        <p class="muted" style="margin-top:6px">A transfer orbit (Hohmann approximation) works when Mars leads Earth by about 44°. That alignment repeats every ~26 months.</p>
+      </div>
+      <div class="box">
+        <h3>Voyager 1 · one light-day</h3>
+        <p class="muted" id="voyager">—</p>
+      </div>
+      <div class="box">
+        <h3>Mars and its moons</h3>
+        <p class="muted">Sol: 24 h 39 min 35 s · Year: 687 Earth days · Tilt: 25.19°<br>Phobos orbits at 9,378 km every 7 h 39 min · Deimos at 23,459 km every 30 h 18 min.</p>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Conditions -->
+<aside class="panel page" id="p-cond" aria-label="Conditions">
+  <h2>Right now at the site</h2>
+  <div class="stats three">
+    <div class="stat"><div class="k">Local solar time</div><div class="v" id="lmst">—</div></div>
+    <div class="stat"><div class="k">Perseverance sol</div><div class="v" id="solNow">—</div></div>
+    <div class="stat"><div class="k">Daylight</div><div class="v" id="dayNow">—</div></div>
+  </div>
+  <p class="muted" style="margin-top:6px">Mars local mean solar time at 77.45°E, computed with NASA GISS Mars24 equations <span class="tag t-calc">COMPUTED</span>. Daylight assumes 06:00–18:00 local time <span class="tag t-est">ESTIMATE</span>.</p>
+
+  <div class="sec">
+    <h2>Space weather · NASA DONKI <span class="tag t-real">LIVE</span></h2>
+    <div class="box" id="stormBox"><p class="muted">Querying NASA's space weather database…</p></div>
+    <div class="btns" style="margin-top:10px"><button type="button" id="simStorm">Simulate solar storm</button></div>
+    <p class="muted" style="margin-top:8px">If a coronal mass ejection reaches Mars during a walk, QUIPU halves the safe time outside the habitat <span class="tag t-est">TEAM RULE</span>.</p>
+  </div>
+
+  <div class="sec">
+    <h2>Surface radiation · Curiosity RAD <span class="tag t-real">NASA DATA</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="k">Daily dose</div><div class="v">0.21 mGy</div></div>
+      <div class="stat"><div class="k">Dose equivalent</div><div class="v">0.64 mSv/day</div></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label for="evaDays">Walks of 8 h per week</label><input id="evaDays" type="number" min="0" max="7" value="3"></div>
+    <p class="muted" id="doseText"></p>
+  </div>
+
+  <div class="sec">
+    <h2>Weather at Jezero</h2>
+    <p class="muted">Next: latest published sol from Perseverance's MEDA station. Waiting for the team's verified data.</p>
+  </div>
+</aside>
+
+<!-- Science -->
+<aside class="panel page wide" id="p-science" aria-label="Science">
+  <h2>Science stops · what Perseverance found</h2>
+  <div class="cards" id="rockCards"></div>
+
+  <div class="sec">
+    <h2>Rock chemistry · SuperCam <span class="tag t-real">PUBLISHED</span></h2>
+    <p class="muted">Average composition of the Máaz formation (crater floor lavas) measured by SuperCam's laser (LIBS). Ranges as published by Udry et al., LPSC 2022 (NASA NTRS).</p>
+    <div class="chart" id="chem"></div>
+    <div class="box">
+      <h3>Quick classifier <span class="tag t-est">RULE-BASED</span></h3>
+      <div class="field"><label for="mgn">Mg# of a rock (0–100)</label><input id="mgn" type="number" min="0" max="100" value="62"></div>
+      <p class="muted" id="classOut"></p>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>SHERLOC · what to look for <span class="tag t-ilu">REFERENCE</span></h2>
+    <table>
+      <thead><tr><th>Target</th><th>Signal</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>Sulfates (gypsum, anhydrite)</td><td>Raman peak ~1008 cm⁻¹</td><td>Salty water once evaporated here</td></tr>
+        <tr><td>Carbonates</td><td>Raman peak ~1086 cm⁻¹</td><td>Formed in water; can trap biosignatures</td></tr>
+        <tr><td>Organic carbon</td><td>D and G bands ~1350 / 1580 cm⁻¹</td><td>Carbon-based molecules</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:6px">Standard reference peak positions, not measurements of a specific rock.</p>
+  </div>
+
+  <div class="sec">
+    <h2>Sound on Mars · Perseverance microphone <span class="tag t-real">NASA DATA</span></h2>
+    <p class="muted">On Mars, low sounds travel at ~240 m/s and high-pitched sounds at ~250 m/s (Earth: ~343 m/s). How long would your shout take to reach your partner?</p>
+    <div class="field"><label for="partner">Distance to partner (m)</label><input id="partner" type="number" min="1" max="2000" value="100"></div>
+    <p class="muted" id="soundOut"></p>
+    <p class="muted" style="margin-top:6px">Listen to the real recordings: <a href="https://science.nasa.gov/mission/mars-2020-perseverance/" target="_blank" rel="noopener">Perseverance sounds (NASA)</a>.</p>
+  </div>
+</aside>
+
+<!-- Comms -->
+<aside class="panel page" id="p-comms" aria-label="Communications">
+  <h2>Earth can't save you in time</h2>
+  <div class="stats">
+    <div class="stat"><div class="k">Signal to Earth</div><div class="v" id="cDelay">—</div></div>
+    <div class="stat"><div class="k">Question + answer</div><div class="v" id="cRound">—</div></div>
+  </div>
+  <p class="muted" style="margin-top:8px">If something fails on a walk, Mission Control hears about it minutes later. The astronaut's map has to decide alone.</p>
+
+  <div class="sec">
+    <h2>Radio range from the habitat <span class="tag t-calc">COMPUTED</span></h2>
+    <div class="field"><label for="habAnt">Habitat antenna height (m)</label><input id="habAnt" type="number" min="1" max="100" value="15"></div>
+    <div class="field"><label for="suitAnt">Suit antenna height (m)</label><input id="suitAnt" type="number" min="0.5" max="5" step="0.5" value="2"></div>
+    <p class="muted" id="radioOut"></p>
+    <p class="muted" style="margin-top:6px">Line-of-sight horizon on a smooth sphere: √(2Rh₁) + √(2Rh₂). Hills and crater walls shorten it.</p>
+  </div>
+
+  <div class="sec">
+    <h2>NASA Deep Space Network <span class="tag t-real">LIVE IF AVAILABLE</span></h2>
+    <div id="dsn" class="muted">Contacting the DSN Now feed…</div>
+  </div>
+</aside>
+
+<!-- Roadmap -->
+<aside class="panel page wide" id="p-roadmap" aria-label="Roadmap">
+  <h2>Roadmap · next phases</h2>
+  <div class="cards">
+    <div class="card"><h3>3D-printed regolith habitat</h3><p>Pick a safe site near ice and size a dome; QUIPU estimates tons of regolith and solar power needed.</p><span class="meta">NASA 3D-Printed Habitat Challenge</span></div>
+    <div class="card"><h3>PIXL chemical maps</h3><p>Millimeter-scale element maps of rocks like Cheyava Falls, linked to each science stop.</p><span class="meta">NASA PDS Geosciences Node</span></div>
+    <div class="card"><h3>Weather forecast</h3><p>Forecast tomorrow's temperature and pressure from hundreds of sols of MEDA records.</p><span class="meta">NASA PDS Atmospheres Node</span></div>
+    <div class="card"><h3>Ice, caves and quakes</h3><p>Global layers for subsurface ice, cave candidates and InSight marsquakes.</p><span class="meta">SWIM · USGS MGC3 · InSight SEIS</span></div>
+    <div class="card"><h3>Crew portal and EVA assistant</h3><p>Two-astronaut buddy plans, emergency drills and an assistant that answers from QUIPU's data.</p><span class="meta">NASA EVA operations concepts</span></div>
+    <div class="card"><h3>Slope and hazard maps</h3><p>Slope from HiRISE terrain models to route around cliffs and boulder fields.</p><span class="meta">MRO HiRISE DTMs</span></div>
+  </div>
+</aside>
+
+<!-- Sources -->
+<aside class="panel page wide" id="p-sources" aria-label="Sources">
+  <h2>Data sources</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Source</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr><td>Mars imagery, elevation, thermal, CTX</td><td>Viking MDIM 2.1 · MGS MOLA · Mars Odyssey THEMIS · MRO CTX, via <a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek</a></td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Moon imagery</td><td>LRO WAC mosaic via <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">NASA Moon Trek</a></td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Solar storms</td><td><a href="https://api.nasa.gov/" target="_blank" rel="noopener">NASA DONKI</a> · CME and WSA-ENLIL simulations</td><td><span class="tag t-real">LIVE</span></td></tr>
+      <tr><td>Planet positions, launch windows, distances</td><td><a href="https://ssd.jpl.nasa.gov/planets/approx_pos.html" target="_blank" rel="noopener">JPL Approximate Positions of the Planets</a> (1800–2050)</td><td><span class="tag t-calc">COMPUTED</span></td></tr>
+      <tr><td>Mars and moons physical data</td><td><a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html" target="_blank" rel="noopener">NASA NSSDC Mars Fact Sheet</a></td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Mars local time and sol</td><td><a href="https://www.giss.nasa.gov/tools/mars24/" target="_blank" rel="noopener">NASA GISS Mars24</a> equations</td><td><span class="tag t-calc">COMPUTED</span></td></tr>
+      <tr><td>Perseverance landing site</td><td>NASA Mars 2020 waypoints (MMGIS): 18.4446°N, 77.4510°E</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Perseverance traverse and science stop positions</td><td>NASA/JPL Mars 2020 waypoints feed (MMGIS), sol 13–1980; each stop = rover position on the sol it studied the target</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Jezero 3D relief</td><td>HiRISE DTM (Mars 2020 TRN mosaic, USGS/JPL/Univ. of Arizona) + MGS MOLA DEM; quantized-mesh tiles prepared by the open project <a href="https://github.com/enomis-dev/perseverance-traverse-3d" target="_blank" rel="noopener">perseverance-traverse-3d</a>; shown with 2.5× vertical exaggeration</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Perseverance 3D model</td><td><a href="https://github.com/nasa/NASA-3D-Resources" target="_blank" rel="noopener">NASA 3D Resources</a></td><td><span class="tag t-real">NASA</span></td></tr>
+      <tr><td>Rock descriptions</td><td>NASA Perseverance mission pages and sample catalog</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Máaz composition</td><td><a href="https://ntrs.nasa.gov/api/citations/20220000502/downloads/Udry%20et%20al.%20Maaz%20igneous%20LPSC%202022.pdf" target="_blank" rel="noopener">Udry et al., LPSC 2022 (NASA NTRS)</a> · SuperCam LIBS</td><td><span class="tag t-real">PUBLISHED</span></td></tr>
+      <tr><td>Surface radiation</td><td>Curiosity RAD: 0.21 mGy/day, 0.64 mSv/day (Hassler et al., Science 2014)</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Speed of sound</td><td>Perseverance SuperCam microphone (Maurice et al., Nature 2022)</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Voyager 1 light-day</td><td>NASA JPL: one light-day from Earth on Nov 18, 2026</td><td><span class="tag t-real">NASA DATA</span></td></tr>
+      <tr><td>Suit oxygen 8 h</td><td>NASA Exploration EVA System Concept of Operations (design target)</td><td><span class="tag t-real">NASA DOC</span></td></tr>
+      <tr><td>Walking speed, load penalty, rover speed, slope limit, storm rule, daylight hours</td><td>Team assumptions</td><td><span class="tag t-est">ESTIMATE</span></td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:10px">3D view built with CesiumJS (open source, Apache 2.0). Code written with help from Claude (Anthropic); concept, data selection and testing by the team. No NASA logos or insignia are used.</p>
+</aside>
+
+<div id="timeline" aria-label="Perseverance journey replay">
+  <button type="button" id="tlPlay" aria-label="Play the journey">▶</button>
+  <input id="tlSol" type="range" min="13" max="1980" value="1980" aria-label="Sol">
+  <div class="tl-label"><span id="tlText">Sol 1980</span><small id="tlSub">Perseverance's real path · NASA waypoints</small></div>
+</div>
+<div id="readout"></div>
+
+<!-- HUD -->
+<div id="hud" aria-live="polite">
+  <div class="visor"></div>
+  <div class="row top">
+    <div class="cell"><small>O₂ LEFT ON RETURN</small><span class="big" id="hO2">—</span></div>
+    <div class="cell"><small>NEXT STOP</small><span class="big" id="hNextD">—</span></div>
+    <div class="cell"><small>STATUS</small><span class="big" id="hState">—</span></div>
+  </div>
+  <div class="cross"></div>
+  <div class="row bot">
+    <div class="cell"><small>HEADING TO</small><span id="hNext">—</span></div>
+    <div class="cell"><small>SPACE WEATHER</small><span id="hStorm">—</span></div>
+    <div class="cell"><small>EARTH DELAY</small><span id="hDelay">—</span></div>
+  </div>
+</div>
+<button type="button" id="hudExit">Exit HUD</button>
+
+<script>
+/* ================= Config ================= */
+const NASA_KEY = 'DEMO_KEY'; // replace with the team's api.nasa.gov key
+const AU_KM = 149597870.7, LIGHT_S_PER_AU = 499.004784;
+
+const BODIES = {
+  mars: {
+    name: 'Mars', site: 'Jezero', R: 3389.5, g: 3.73, gRatio: 0.38,
+    ellipsoid: new Cesium.Ellipsoid(3396190.0, 3396190.0, 3376200.0),
+    trekBase: 'https://trek.nasa.gov/tiles/Mars/EQ/',
+    layers: [
+      { id: 'viking', label: 'Viking color', kind: 'optical', path: 'Mars_Viking_MDIM21_ClrMosaic_global_232m', ext: 'jpg', max: 7, base: true },
+      { id: 'mola', label: 'MOLA elevation', kind: 'topography', path: 'Mars_MGS_MOLA_ClrShade_merge_global_463m', ext: 'jpg', max: 6, base: true },
+      { id: 'themis', label: 'THEMIS thermal', kind: 'thermal', path: 'Mars_MO_THEMIS-IR-Day_mosaic_global_100m_v12', ext: 'png', max: 8, base: true },
+      { id: 'ctx', label: 'CTX high-res', kind: 'beta', path: 'CTX_beta01_uncontrolled_5m_Caltech', ext: 'png', max: 14, base: false }
+    ],
+    BASE: { lat: 18.44463, lng: 77.45095, name: 'Habitat · Perseverance landing site' },
+    view: { lat: 18.40, lng: 77.40, h: 34000 },
+    // Positions = Perseverance's location on the sol it studied each target (NASA MMGIS waypoints)
+    SCI: {
+      rochette: { lat: 18.43074, lng: 77.44437, sol: 180, name: 'Rochette (Máaz)', sci: 'Basaltic lava · first successful core' },
+      issole: { lat: 18.43260, lng: 77.44141, sol: 328, name: 'Issole (Séítah edge)', sci: 'Olivine-rich igneous rock · core "Malay"' },
+      wildcat: { lat: 18.45865, lng: 77.40592, sol: 502, name: 'Wildcat Ridge (delta)', sci: 'Sulfate-rich mudstone with organic signals' },
+      depot: { lat: 18.45337, lng: 77.40845, sol: 686, name: 'Three Forks depot', sci: '10 sample tubes left on the surface' },
+      bunsen: { lat: 18.49183, lng: 77.32720, sol: 1084, name: 'Bunsen Peak (margin)', sci: 'Carbonate- and silica-rich rock' },
+      cheyava: { lat: 18.49599, lng: 77.30370, sol: 1219, name: 'Cheyava Falls (Bright Angel)', sci: 'Potential biosignature · core "Sapphire Canyon"' }
+    },
+    SHORT: ['rochette', 'issole'],
+    LONG: ['wildcat', 'depot', 'bunsen'],
+    hazards: [
+      { lat: 18.4255, lng: 77.4300, name: 'Séítah sand ripples (approx.)', type: 'hazard' },
+      { lat: 18.4560, lng: 77.4140, name: 'Delta front scarp (approx.)', type: 'hazard' },
+      { lat: 18.45337, lng: 77.40845, name: 'Work zone: sample depot', type: 'zone' }
+    ],
+    sites: [
+      ['Viking 1', 22.27, -47.95], ['Viking 2', 47.64, 134.29], ['Pathfinder', 19.13, -33.22],
+      ['Spirit', -14.57, 175.47], ['Opportunity', -1.95, -5.53], ['Phoenix', 68.22, -125.75],
+      ['Curiosity', -4.59, 137.44], ['InSight', 4.50, 135.62], ['Perseverance', 18.44, 77.45]
+    ]
+  },
+  moon: {
+    name: 'Moon', site: 'Shackleton', R: 1737.4, g: 1.62, gRatio: 0.165,
+    ellipsoid: new Cesium.Ellipsoid(1737400.0, 1737400.0, 1737400.0),
+    trekBase: 'https://trek.nasa.gov/tiles/Moon/EQ/',
+    layers: [
+      { id: 'wac', label: 'LRO WAC mosaic', kind: 'optical', path: 'LRO_WAC_Mosaic_Global_303ppd_v02', ext: 'jpg', max: 7, base: true }
+    ],
+    BASE: { lat: -89.30, lng: 129.78, name: 'Habitat · outside Shackleton rim (approx.)' },
+    view: { lat: -89.40, lng: 129.78, h: 70000 },
+    SCI: {
+      ridge: { lat: -89.33, lng: 120.0, name: 'Sunlit rim ridge (approx.)', sci: 'Near-constant sunlight for solar power' },
+      psr: { lat: -89.50, lng: 129.78, name: 'Inside Shackleton, permanent shadow (approx.)', sci: 'Cold trap that may hold water ice' }
+    },
+    SHORT: ['ridge'],
+    LONG: ['ridge', 'psr'],
+    hazards: [],
+    sites: []
+  }
+};
+
+/* ================= Shared helpers ================= */
+const GROUND = { heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, disableDepthTestDistance: Number.POSITIVE_INFINITY };
+const $ = id => document.getElementById(id);
+const num = id => Math.max(0, parseFloat($(id).value) || 0);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmtKm = km => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`;
+const fmtH = h => { const m = Math.max(0, Math.round(h * 60)); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
+const fmtMin = s => `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')} s`;
+const toRad = d => d * Math.PI / 180;
+
+/* JPL Approximate Positions of the Planets, Table 1 (1800–2050) */
+const ELEM = {
+  Mercury: [[0.38709927, 0.00000037], [0.20563593, 0.00001906], [7.00497902, -0.00594749], [252.25032350, 149472.67411175], [77.45779628, 0.16047689], [48.33076593, -0.12534081]],
+  Venus: [[0.72333566, 0.00000390], [0.00677672, -0.00004107], [3.39467605, -0.00078890], [181.97909950, 58517.81538729], [131.60246718, 0.00268329], [76.67984255, -0.27769418]],
+  Earth: [[1.00000261, 0.00000562], [0.01671123, -0.00004392], [-0.00001531, -0.01294668], [100.46457166, 35999.37244981], [102.93768193, 0.32327364], [0, 0]],
+  Mars: [[1.52371034, 0.00001847], [0.09339410, 0.00007882], [1.84969142, -0.00813131], [-4.55343205, 19140.30268499], [-23.94362959, 0.44441088], [49.55953891, -0.29257343]]
+};
+const jdOf = d => d.getTime() / 864e5 + 2440587.5;
+function helio(name, date) {
+  const T = (jdOf(date) - 2451545.0) / 36525;
+  const [a, e, I, L, w, O] = ELEM[name].map(([v, r]) => v + r * T);
+  let M = ((L - w) % 360 + 540) % 360 - 180; M = toRad(M);
+  let E = M; for (let k = 0; k < 30; k++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  const xp = a * (Math.cos(E) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  const om = toRad(w - O), Om = toRad(O), inc = toRad(I);
+  const x = (Math.cos(om) * Math.cos(Om) - Math.sin(om) * Math.sin(Om) * Math.cos(inc)) * xp + (-Math.sin(om) * Math.cos(Om) - Math.cos(om) * Math.sin(Om) * Math.cos(inc)) * yp;
+  const y = (Math.cos(om) * Math.sin(Om) + Math.sin(om) * Math.cos(Om) * Math.cos(inc)) * xp + (-Math.sin(om) * Math.sin(Om) + Math.cos(om) * Math.cos(Om) * Math.cos(inc)) * yp;
+  const z = Math.sin(om) * Math.sin(inc) * xp + Math.cos(om) * Math.sin(inc) * yp;
+  return { x, y, z };
+}
+const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+function earthMars(date) { const e = helio('Earth', date), m = helio('Mars', date); return { au: dist3(e, m), sun: Math.hypot(m.x, m.y, m.z), e, m }; }
+function phaseAngle(date) {
+  const e = helio('Earth', date), m = helio('Mars', date);
+  return ((Math.atan2(m.y, m.x) - Math.atan2(e.y, e.x)) * 180 / Math.PI + 540) % 360 - 180;
+}
+/* Mars24 (NASA GISS) */
+function marsTime(date, lonE) {
+  const jdTT = jdOf(date) + 69.184 / 86400;
+  const msd = (jdTT - 2405522.0028779) / 1.0274912517;
+  const mtc = ((24 * msd) % 24 + 24) % 24;
+  const lmst = ((mtc + lonE / 15) % 24 + 24) % 24;
+  const sol = Math.floor(msd + lonE / 360 - 52304);
+  return { lmst, sol };
+}
+
+/* ================= 3D globe ================= */
+let body = 'mars', B = BODIES.mars, viewer, layers = {}, siteEntities = [], hazEntities = [], routeEntities = [], spinning = true;
+let stops = [], adding = false, stormActive = false, stormSim = false, drill = null;
+
+function buildViewer() {
+  if (viewer) { viewer.destroy(); viewer = null; }
+  Cesium.Ellipsoid.default = B.ellipsoid;
+  viewer = new Cesium.Viewer('globe', {
+    baseLayer: false, globe: new Cesium.Globe(B.ellipsoid),
+    animation: false, timeline: false, geocoder: false, homeButton: false, sceneModePicker: false,
+    baseLayerPicker: false, navigationHelpButton: false, fullscreenButton: false,
+    infoBox: false, selectionIndicator: false, skyAtmosphere: false
+  });
+  const s = viewer.scene;
+  s.globe.baseColor = Cesium.Color.fromCssColorString(body === 'mars' ? '#5A2A17' : '#3A3A40');
+  s.globe.showGroundAtmosphere = false; s.globe.enableLighting = $('lightToggle').checked; s.fog.enabled = false;
+  s.screenSpaceCameraController.minimumZoomDistance = 150;
+  s.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(body === 'mars' ? 60 : -140, body === 'mars' ? 12 : -50, B.R * 1000 * 4.2, B.ellipsoid) });
+
+  layers = {};
+  const list = $('layerList'); list.innerHTML = ''; $('layerMsg').textContent = '';
+  B.layers.forEach((L, i) => {
+    const provider = new Cesium.UrlTemplateImageryProvider({
+      url: `${B.trekBase}${L.path}/1.0.0/default/default028mm/{z}/{y}/{x}.${L.ext}`, maximumLevel: L.max,
+      tilingScheme: new Cesium.GeographicTilingScheme({ ellipsoid: B.ellipsoid })
+    });
+    const layer = viewer.imageryLayers.addImageryProvider(provider);
+    layer.show = i === 0;
+    if (L.id === 'viking') { layer.brightness = 1.15; layer.contrast = 1.2; layer.saturation = 1.3; }
+    let fails = 0;
+    provider.errorEvent.addEventListener(err => { fails++; if (err) err.retry = false; if (fails === 6) $('layerMsg').textContent = `${L.label} did not respond from NASA's server.`; });
+    layers[L.id] = layer;
+    const row = document.createElement('label'); row.className = 'toggle';
+    row.innerHTML = L.base ? `<input type="radio" name="baseLayer" value="${L.id}" ${i === 0 ? 'checked' : ''}> ${L.label} <em>${L.kind}</em>`
+      : `<input type="checkbox" data-overlay="${L.id}"> ${L.label} <em>${L.kind}</em>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('input[name="baseLayer"]').forEach(r => r.onchange = () => {
+    const sel = list.querySelector('input[name="baseLayer"]:checked').value;
+    B.layers.filter(l => l.base).forEach(l => layers[l.id].show = l.id === sel);
+  });
+  list.querySelectorAll('input[data-overlay]').forEach(c => c.onchange = () => { layers[c.dataset.overlay].show = c.checked; viewer.imageryLayers.raiseToTop(layers[c.dataset.overlay]); });
+
+  const E = B.ellipsoid;
+  siteEntities = B.sites.map(([name, lat, lng]) => viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lng, lat, 0, E),
+    point: { pixelSize: 8, color: Cesium.Color.fromCssColorString('#F2A65A'), outlineColor: Cesium.Color.BLACK, outlineWidth: 2, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(3e5, 6e7) },
+    label: { text: name, font: '600 13px Inter', fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'), pixelOffset: new Cesium.Cartesian2(0, -18), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(3e5, 6e7) }
+  }));
+  siteEntities.forEach(en => en.show = $('sitesToggle').checked);
+  hazEntities = B.hazards.map(h => viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(h.lng, h.lat, 0, E),
+    ellipse: { semiMajorAxis: h.type === 'zone' ? 260 : 380, semiMinorAxis: h.type === 'zone' ? 260 : 380,
+      material: Cesium.Color.fromCssColorString(h.type === 'zone' ? '#6FC3C9' : '#E5533D').withAlpha(0.28),
+      outline: true, outlineColor: Cesium.Color.fromCssColorString(h.type === 'zone' ? '#6FC3C9' : '#E5533D') },
+    label: { text: h.name, font: '600 11px Inter', fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 6e4) }
+  }));
+  hazEntities.forEach(en => en.show = $('hazToggle').checked);
+  viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(B.BASE.lng, B.BASE.lat, 0, E),
+    point: { pixelSize: 15, color: Cesium.Color.WHITE, outlineColor: Cesium.Color.fromCssColorString('#F2A65A'), outlineWidth: 3, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4e5), ...GROUND },
+    label: { text: 'HABITAT', font: '700 13px "JetBrains Mono"', fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'), pixelOffset: new Cesium.Cartesian2(0, -20), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4e5), ...GROUND }
+  });
+
+  spinning = true;
+  viewer.clock.onTick.addEventListener(() => { if (spinning) viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0008); });
+  ['mousedown', 'wheel', 'touchstart'].forEach(ev => viewer.canvas.addEventListener(ev, () => spinning = false));
+
+  const handler = new Cesium.ScreenSpaceEventHandler(s.canvas);
+  handler.setInputAction(e => {
+    if (!adding) return;
+    let c = viewer.scene.pickPositionSupported ? viewer.scene.pickPosition(e.position) : null;
+    if (!c) c = viewer.camera.pickEllipsoid(e.position, E); if (!c) return;
+    const g = Cesium.Cartographic.fromCartesian(c, E);
+    stops.push({ lat: Cesium.Math.toDegrees(g.latitude), lng: Cesium.Math.toDegrees(g.longitude), name: `Stop ${stops.length + 1}`, sci: '' });
+    drill = null; render();
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  routeEntities = [];
+  setupExtras();
+  $('planTitle').textContent = `Plan a Walk · ${B.site}`;
+  $('gNote').textContent = `${B.g} m/s² (${Math.round(B.gRatio * 100)}% of Earth)`;
+  $('jNote').textContent = `${(1 / B.gRatio).toFixed(1)}×`;
+}
+
+function flySite(d = 4) {
+  spinning = false;
+  viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(B.view.lng + (body === 'mars' ? 0.05 : 0), B.view.lat - (body === 'mars' ? 0.33 : 0), body === 'mars' ? 16000 : B.view.h, B.ellipsoid),
+    orientation: { heading: Cesium.Math.toRadians(body === 'mars' ? -15 : 0), pitch: Cesium.Math.toRadians(body === 'mars' ? -28 : -80), roll: 0 }, duration: d });
+}
+function flyRoute(d = 3) {
+  spinning = false;
+  const pts = [B.BASE, ...stops];
+  const lat = pts.reduce((a, p) => a + p.lat, 0) / pts.length, lng = pts.reduce((a, p) => a + p.lng, 0) / pts.length;
+  const span = Math.max(...pts.map(p => dist(p, { lat, lng })));
+  viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lng, lat - (body === 'mars' ? span / 140 : 0), Math.max(4000, span * 2600), B.ellipsoid),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(body === 'mars' ? -58 : -85), roll: 0 }, duration: d });
+}
+
+/* ================= Planner ================= */
+function dist(a, b) {
+  const h = Math.sin(toRad(b.lat - a.lat) / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lng - a.lng) / 2) ** 2;
+  return 2 * B.R * Math.asin(Math.sqrt(h));
+}
+function radioRangeKm() { return (Math.sqrt(2 * B.R * 1000 * num('habAnt')) + Math.sqrt(2 * B.R * 1000 * num('suitAnt'))) / 1000; }
+function analyze() {
+  const o2 = num('o2'), limit = (stormActive || stormSim) ? o2 * 0.5 : o2;
+  const speed = $('roverToggle').checked ? 10 : Math.max(0.05, num('speed') * Math.max(0.3, 1 - 0.006 * num('load')));
+  const stopH = num('stopMin') / 60, reserve = num('reserve') / 100;
+  const pts = [B.BASE, ...stops, B.BASE];
+  let t = 0, d = 0, far = 0; const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], dd = dist(a, b), steps = Math.max(1, Math.ceil(dd / 0.08));
+    for (let s = 0; s < steps; s++) {
+      const p0 = { lat: a.lat + (b.lat - a.lat) * s / steps, lng: a.lng + (b.lng - a.lng) * s / steps };
+      const p1 = { lat: a.lat + (b.lat - a.lat) * (s + 1) / steps, lng: a.lng + (b.lng - a.lng) * (s + 1) / steps };
+      t += dd / steps / speed; d += dd / steps;
+      const back = dist(p1, B.BASE); far = Math.max(far, back);
+      let budget = limit; if (drill && i >= drill.leg) budget = Math.min(budget, drill.at + drill.left);
+      const left = budget - t - back / speed;
+      segs.push({ p0, p1, status: left < 0 ? 'bad' : left < limit * reserve ? 'warn' : 'ok' });
+    }
+    if (i < pts.length - 2) t += stopH;
+  }
+  return { limit, speed, total: t, d, far, left: limit - t, segs, reserve };
+}
+let last = null;
+function render() {
+  if (!viewer) return;
+  routeEntities.splice(0).forEach(e => viewer.entities.remove(e));
+  const E = B.ellipsoid, list = $('stops'); list.innerHTML = '';
+  stops.forEach((s, i) => {
+    routeEntities.push(viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(s.lng, s.lat, 0, E),
+      point: { pixelSize: 12, color: Cesium.Color.fromCssColorString('#6FC3C9'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, ...GROUND },
+      label: { text: `${i + 1}. ${s.name}`, font: '600 12px Inter', fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'), pixelOffset: new Cesium.Cartesian2(0, -18), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2.5e5), ...GROUND }
+    }));
+    const li = document.createElement('li');
+    li.innerHTML = `${s.name}<small>${s.sci || 'No description'} · ${s.lat.toFixed(4)}°, ${s.lng.toFixed(4)}°</small>`;
+    list.appendChild(li);
+  });
+  const light = $('light');
+  if (!stops.length) {
+    light.style.background = '#3A2F52'; $('vTitle').textContent = 'Add stops'; $('vText').textContent = 'Turn on "Add stops" and click the surface.';
+    $('sDist').textContent = '0 km'; $('sFar').textContent = '0 km'; $('sTime').textContent = '0 h 00'; $('sO2').textContent = '—';
+    $('barFill').style.width = '0'; $('radioWarn').textContent = ''; last = null; updateHud(); clearProfile(); return;
+  }
+  const a = analyze(); last = a;
+  const col = { ok: css('--ok'), warn: css('--warn'), bad: css('--bad') };
+  let run = null;
+  const flush = () => { if (run) routeEntities.push(viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray(run.pts.flatMap(p => [p.lng, p.lat]), E), width: 7, clampToGround: true, material: Cesium.Color.fromCssColorString(col[run.status]) } })); };
+  a.segs.forEach(s => { if (!run || run.status !== s.status) { flush(); run = { status: s.status, pts: [s.p0] }; } run.pts.push(s.p1); });
+  flush();
+  const firstBad = a.segs.find(s => s.status === 'bad');
+  if (firstBad) routeEntities.push(viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(firstBad.p0.lng, firstBad.p0.lat, 0, E),
+    point: { pixelSize: 16, color: Cesium.Color.fromCssColorString(col.bad), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, ...GROUND },
+    label: { text: 'POINT OF NO RETURN', font: '700 12px "JetBrains Mono"', fillColor: Cesium.Color.WHITE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#E5533DDD'), pixelOffset: new Cesium.Cartesian2(0, 22), ...GROUND }
+  }));
+  $('sDist').textContent = fmtKm(a.d); $('sTime').textContent = fmtH(a.total); $('sFar').textContent = fmtKm(a.far);
+  $('sO2').textContent = a.left < 0 ? 'Empty' : `${Math.round(Math.max(0, a.left) / a.limit * 100)}%`;
+  const status = (a.left < 0 || firstBad) ? 'bad' : (a.left < a.limit * a.reserve || a.segs.some(s => s.status === 'warn')) ? 'warn' : 'ok';
+  a.status = status;
+  light.style.background = col[status];
+  const storm = (stormActive || stormSim) ? ' Solar storm: safe time outside is cut in half.' : '';
+  if (drill) { $('vTitle').textContent = status === 'bad' ? 'Drill: you don\'t make it' : 'Drill: you make it back';
+    $('vText').textContent = `Suit leak at stop ${drill.leg}: 45 min of oxygen left. ` + (status === 'bad' ? 'Skip the rest and head straight home.' : 'Head home now along the marked route.'); }
+  else if (status === 'ok') { $('vTitle').textContent = 'Safe route'; $('vText').textContent = `You return with ${fmtH(a.left)} to spare.` + storm; }
+  else if (status === 'warn') { $('vTitle').textContent = 'Low margin'; $('vText').textContent = `You return below the ${Math.round(a.reserve * 100)}% reserve. Drop a stop or carry less.` + storm; }
+  else { $('vTitle').textContent = 'You don\'t make it back'; $('vText').textContent = 'The route crosses the point of no return shown on the map. Shorten it or use a rover.' + storm; }
+  $('barFill').style.cssText = `width:${Math.min(100, a.total / a.limit * 100)}%;background:${col[status]}`;
+  const rr = radioRangeKm();
+  $('radioWarn').textContent = a.far > rr ? `⚠ Beyond ${fmtKm(rr)} you lose direct radio contact with the habitat.` : '';
+  updateHud();
+  computeProfile(a);
+}
+
+$('addBtn').onclick = () => {
+  adding = !adding; $('addBtn').textContent = adding ? 'Done' : 'Add stops';
+  $('mode').textContent = adding ? 'Click the surface to add stops in order.' : '';
+  if (adding && viewer.camera.positionCartographic.height > 4e5) flySite(2.5);
+};
+$('undoBtn').onclick = () => { stops.pop(); drill = null; render(); };
+$('clearBtn').onclick = () => { stops = []; drill = null; render(); };
+$('demoShort').onclick = () => { stops = B.SHORT.map(k => ({ ...B.SCI[k] })); drill = null; render(); flyRoute(); };
+$('demoLong').onclick = () => { stops = B.LONG.map(k => ({ ...B.SCI[k] })); drill = null; render(); flyRoute(); };
+$('roverToggle').onchange = () => { drill = null; render(); };
+['o2', 'speed', 'load', 'stopMin', 'reserve', 'habAnt', 'suitAnt', 'slopeMax'].forEach(id => $(id).addEventListener('input', () => { drill = null; render(); updateComms(); }));
+
+$('drillBtn').onclick = () => {
+  if (!stops.length) stops = B.LONG.map(k => ({ ...B.SCI[k] }));
+  const leg = Math.min(2, stops.length); drill = null;
+  const a = analyze(), pts = [B.BASE, ...stops]; let t = 0;
+  for (let i = 0; i < leg; i++) t += dist(pts[i], pts[i + 1]) / a.speed + (i > 0 ? num('stopMin') / 60 : 0);
+  drill = { leg, at: t, left: 0.75 };
+  render(); flyRoute();
+};
+$('surfaceBtn').onclick = () => {
+  spinning = false;
+  const tgt = stops[0] || B.SCI[B.SHORT[0]];
+  const heading = Math.atan2((tgt.lng - B.BASE.lng) * Math.cos(toRad(B.BASE.lat)), tgt.lat - B.BASE.lat);
+  groundHeight(B.BASE.lat, B.BASE.lng).then(h => {
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(B.BASE.lng, B.BASE.lat, h * exag() + 60, B.ellipsoid), orientation: { heading, pitch: Cesium.Math.toRadians(-8), roll: 0 }, duration: 4 });
+  });
+};
+
+/* Printable report */
+$('printBtn').onclick = () => {
+  if (!stops.length) { $('mode').textContent = 'Add stops or load a demo first.'; return; }
+  const a = analyze(), w = window.open('', '_blank'); if (!w) return;
+  const rows = stops.map((s, i) => `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.lat.toFixed(4)}</td><td>${s.lng.toFixed(4)}</td><td>${s.sci || ''}</td></tr>`).join('');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QUIPU EVA report</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{margin:0}table{border-collapse:collapse;width:100%;margin-top:12px}td,th{border:1px solid #999;padding:6px;font-size:12px;text-align:left}.k{color:#555;font-size:12px}</style></head><body>
+  <h1>QUIPU · EVA Plan</h1><p class="k">${B.name} · ${B.site} · generated ${new Date().toUTCString()}</p>
+  <p><b>Habitat:</b> ${B.BASE.lat.toFixed(4)}, ${B.BASE.lng.toFixed(4)}</p>
+  <p><b>Distance:</b> ${fmtKm(a.d)} · <b>Duration:</b> ${fmtH(a.total)} · <b>Oxygen budget:</b> ${fmtH(a.limit)} · <b>Margin:</b> ${a.left < 0 ? 'NONE' : fmtH(a.left)} · <b>Farthest from habitat:</b> ${fmtKm(a.far)}</p>
+  <table><tr><th>#</th><th>Stop</th><th>Lat</th><th>Lon</th><th>Science</th></tr>${rows}</table>
+  <h3>Return protocol</h3><ol><li>Walk in pairs; keep visual contact.</li><li>Turn back immediately if oxygen margin drops below ${Math.round(a.reserve * 100)}%.</li><li>On a solar storm alert, end the walk and return to the habitat.</li><li>Beyond ${fmtKm(radioRangeKm())} radio contact with the habitat is not guaranteed.</li></ol>
+  <p class="k">Walking speed, load penalty and storm rule are team estimates. Map data: NASA Mars/Moon Trek.</p>
+  <script>window.print()<\/script></body></html>`);
+  w.document.close();
+};
+
+/* HUD */
+function updateHud() {
+  const set = (id, v, bad) => { const el = $(id); el.textContent = v; el.classList.toggle('warn', !!bad); };
+  const em = earthMars(new Date());
+  set('hDelay', body === 'mars' ? fmtMin(em.au * LIGHT_S_PER_AU) : '1.3 s');
+  if (!last) { ['hO2', 'hState', 'hNext', 'hNextD'].forEach(id => set(id, '—')); return; }
+  set('hO2', last.left < 0 ? '0%' : `${Math.round(Math.max(0, last.left) / last.limit * 100)}%`, last.status === 'bad');
+  set('hState', last.status === 'ok' ? 'SAFE' : last.status === 'warn' ? 'LOW MARGIN' : 'TURN BACK', last.status === 'bad');
+  set('hNext', stops[0] ? stops[0].name : '—');
+  set('hNextD', stops[0] ? fmtKm(dist(B.BASE, stops[0])) : '—');
+}
+$('hudBtn').onclick = () => {
+  if (!stops.length) { stops = B.SHORT.map(k => ({ ...B.SCI[k] })); render(); }
+  $('hud').style.display = 'block'; $('hudExit').style.display = 'block';
+  document.querySelectorAll('.panel, header, #timeline, #readout').forEach(p => p.style.visibility = 'hidden');
+  $('surfaceBtn').onclick();
+};
+$('hudExit').onclick = () => { $('hud').style.display = 'none'; $('hudExit').style.display = 'none'; document.querySelectorAll('.panel, header, #timeline, #readout').forEach(p => p.style.visibility = ''); };
+
+/* Layer toggles */
+$('sitesToggle').onchange = e => siteEntities.forEach(en => en.show = e.target.checked);
+$('hazToggle').onchange = e => hazEntities.forEach(en => en.show = e.target.checked);
+$('lightToggle').onchange = e => { viewer.scene.globe.enableLighting = e.target.checked; };
+$('flySite').onclick = () => flySite();
+$('flyGlobe').onclick = () => viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(B.view.lng, B.view.lat, B.R * 1000 * 4.2, B.ellipsoid), duration: 3 });
+
+/* Body switch */
+document.querySelectorAll('[data-body]').forEach(b => b.onclick = () => {
+  if (b.dataset.body === body) return;
+  document.querySelectorAll('[data-body]').forEach(x => x.classList.toggle('active', x === b));
+  body = b.dataset.body; B = BODIES[body]; stops = []; drill = null;
+  $('intro').style.display = 'none';
+  buildViewer(); render(); showView('mission'); setTimeout(() => flySite(4), 400);
+});
+
+/* Navigation */
+function showView(v) {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x.dataset.view === v));
+  $('plan').style.display = v === 'mission' ? '' : 'none';
+  $('layers').style.display = v === 'mission' ? '' : 'none';
+  $('timeline').style.display = v === 'mission' && body === 'mars' ? 'flex' : 'none';
+  $('readout').style.display = v === 'mission' ? '' : 'none';
+  ['solar', 'cond', 'science', 'comms', 'roadmap', 'sources'].forEach(p => $('p-' + p).style.display = v === p ? 'block' : 'none');
+  $('intro').style.display = 'none';
+  if (v === 'solar') drawOrrery();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showView(b.dataset.view));
+$('startBtn').onclick = () => { $('intro').style.display = 'none'; flySite(5); };
+$('introSolar').onclick = () => showView('solar');
+
+/* ================= Solar system ================= */
+function drawOrrery() {
+  const cv = $('orrery'), ctx = cv.getContext('2d'), W = cv.width, C = W / 2, S = W / 2 / 1.75;
+  const date = new Date(Date.now() + parseInt($('dayOffset').value, 10) * 864e5);
+  $('dateLabel').textContent = date.toISOString().slice(0, 10) + (parseInt($('dayOffset').value, 10) === 0 ? ' (today)' : '');
+  ctx.clearRect(0, 0, W, W);
+  for (let i = 0; i < 160; i++) { const r = (Math.sin(i * 91.7) * 0.5 + 0.5) * W, q = (Math.sin(i * 47.3) * 0.5 + 0.5) * W; ctx.fillStyle = '#ffffff22'; ctx.fillRect(r, q, 1.5, 1.5); }
+  const colors = { Mercury: '#B4AA9C', Venus: '#E8C48A', Earth: '#6FC3C9', Mars: '#E5733D' };
+  Object.keys(ELEM).forEach(n => {
+    ctx.beginPath();
+    for (let k = 0; k <= 200; k++) {
+      const per = { Mercury: 88, Venus: 225, Earth: 365.25, Mars: 687 }[n];
+      const p = helio(n, new Date(date.getTime() + (k / 200) * per * 864e5));
+      const x = C + p.x * S, y = C - p.y * S; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = '#ffffff26'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+  const g = ctx.createRadialGradient(C, C, 0, C, C, 34); g.addColorStop(0, '#FFF3C4'); g.addColorStop(1, '#F2A65A00');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(C, C, 34, 0, 7); ctx.fill();
+  const pos = {};
+  Object.keys(ELEM).forEach(n => { const p = helio(n, date); pos[n] = p; const x = C + p.x * S, y = C - p.y * S;
+    ctx.fillStyle = colors[n]; ctx.beginPath(); ctx.arc(x, y, n === 'Earth' || n === 'Mars' ? 11 : 8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#F5EFE6'; ctx.font = '600 22px Inter'; ctx.fillText(n, x + 14, y - 12); });
+  ctx.setLineDash([8, 8]); ctx.strokeStyle = '#F2A65A'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(C + pos.Earth.x * S, C - pos.Earth.y * S); ctx.lineTo(C + pos.Mars.x * S, C - pos.Mars.y * S); ctx.stroke(); ctx.setLineDash([]);
+  const em = earthMars(date);
+  $('emDist').textContent = `${(em.au * AU_KM / 1e6).toFixed(0)} M km`;
+  $('emDelay').textContent = fmtMin(em.au * LIGHT_S_PER_AU);
+  $('msDist').textContent = `${em.sun.toFixed(3)} AU`;
+  $('phase').textContent = `${phaseAngle(date).toFixed(0)}°`;
+}
+function findWindows() {
+  const out = []; let d = new Date(Date.now() - 120 * 864e5), prev = phaseAngle(d);
+  for (let k = 0; k < 365 * 9 && out.length < 3; k++) {
+    d = new Date(d.getTime() + 864e5); const p = phaseAngle(d);
+    if (prev > 44 && p <= 44) out.push(new Date(d));
+    prev = p;
+  }
+  $('windows').innerHTML = out.map(w => `≈ <b>${w.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</b>`).join('<br>') +
+    '<br><span>Real launch periods span several weeks around these dates.</span>';
+}
+function voyager() {
+  const t = new Date('2026-11-18T00:00:00Z'), now = new Date(), days = Math.ceil((t - now) / 864e5);
+  $('voyager').innerHTML = days > 0
+    ? `In <b>${days} day${days === 1 ? '' : 's'}</b> (Nov 18, 2026) Voyager 1 will be one light-day from Earth: 25.9 billion km. A message to it will take 24 hours to arrive.`
+    : `Since Nov 18, 2026, Voyager 1 is more than one light-day (25.9 billion km) from Earth, the farthest human-made object.`;
+}
+$('dayOffset').addEventListener('input', drawOrrery);
+
+/* ================= Conditions ================= */
+function updateClock() {
+  const mt = marsTime(new Date(), 77.45);
+  const h = Math.floor(mt.lmst), m = Math.floor((mt.lmst - h) * 60);
+  $('lmst').textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  $('solNow').textContent = `≈ ${mt.sol}`;
+  $('dayNow').textContent = mt.lmst >= 6 && mt.lmst < 18 ? 'Day ☀' : 'Night ☾';
+}
+function updateDose() {
+  const d = num('evaDays') * (8 / 24) * 0.64 * 52;
+  $('doseText').textContent = `Surface dose alone, from walks only: about ${d.toFixed(0)} mSv per year (habitat shielding not included). NASA's career limit for astronauts is 600 mSv.`;
+}
+$('evaDays').addEventListener('input', updateDose);
+
+function setPill(color, text) { const p = $('pill'); p.querySelector('i').style.background = color; p.querySelector('span').textContent = text; }
+const iso = d => d.toISOString().slice(0, 10);
+async function loadDonki() {
+  const now = new Date(), from = new Date(now - 30 * 864e5), box = $('stormBox');
+  try {
+    const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    const [sims, cmes] = await Promise.all([
+      get(`https://api.nasa.gov/DONKI/WSAEnlilSimulations?startDate=${iso(from)}&endDate=${iso(now)}&api_key=${NASA_KEY}`),
+      get(`https://api.nasa.gov/DONKI/CME?startDate=${iso(from)}&endDate=${iso(now)}&api_key=${NASA_KEY}`)
+    ]);
+    const arr = [];
+    (sims || []).forEach(s => (s.impactList || []).forEach(im => { if (/mars/i.test(im.location || '') && im.arrivalTime) arr.push({ t: new Date(im.arrivalTime), glancing: im.isGlancingBlow }); }));
+    arr.sort((a, b) => a.t - b.t);
+    const active = arr.find(a => a.t >= new Date(now - 864e5) && a.t <= new Date(+now + 3 * 864e5));
+    const lastA = arr.filter(a => a.t < now).pop(), next = arr.find(a => a.t >= now);
+    stormActive = !!active; box.classList.toggle('alert', stormActive);
+    const f = d => d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<h3>${stormActive ? '⚠ Solar storm reaching Mars' : 'No solar storm over Mars right now'}</h3>
+      <p class="muted" style="margin-top:6px">Last 30 days: <b>${(cmes || []).length}</b> coronal mass ejections logged by NASA · <b>${arr.length}</b> modeled arriving at Mars.</p>
+      ${next ? `<p class="muted">Next modeled arrival at Mars: <b>${f(next.t)}</b>${next.glancing ? ' (glancing blow)' : ''}.</p>` : ''}
+      ${lastA ? `<p class="muted">Last arrival at Mars: <b>${f(lastA.t)}</b>.</p>` : ''}
+      <p class="muted" style="margin-top:6px">Source: NASA DONKI, WSA-ENLIL simulations. Checked ${f(now)}.</p>`;
+    setPill(stormActive ? css('--bad') : css('--ok'), stormActive ? 'SOLAR ALERT · MARS' : 'SPACE WEATHER OK');
+    $('hStorm').textContent = stormActive ? 'ALERT' : 'OK';
+  } catch (err) {
+    box.innerHTML = `<p class="muted">Could not reach NASA DONKI (${err.message}). Check the connection or the API key limit.</p>`;
+    setPill(css('--muted'), 'DONKI OFFLINE');
+  }
+  render();
+}
+$('simStorm').onclick = e => {
+  stormSim = !stormSim; e.target.classList.toggle('on', stormSim);
+  e.target.textContent = stormSim ? 'Stop simulation' : 'Simulate solar storm';
+  if (stormSim) { setPill(css('--bad'), 'SIMULATION · SOLAR STORM'); $('hStorm').textContent = 'ALERT (SIM)'; } else loadDonki();
+  render();
+};
+
+/* ================= Science ================= */
+const ROCKS = [
+  { name: 'Rochette · Máaz formation', meta: 'Crater floor · sampled Sept 2021 (cores Montdenier & Montagnac)', text: 'Basaltic lava rock. The first rock Perseverance successfully cored. Tells us the crater floor is volcanic.', link: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+  { name: 'Séítah · olivine cumulate', meta: 'Crater floor · late 2021', text: 'Large olivine crystals that settled in a thick magma body, later altered by water.', link: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+  { name: 'Wildcat Ridge · delta', meta: 'Delta front · sampled July 2022 (core Hazeltop)', text: 'Fine-grained mudstone from the ancient lake, rich in sulfates, with organic signals detected by SHERLOC.', link: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+  { name: 'Bunsen Peak · margin unit', meta: 'Crater margin · 2024', text: 'Carbonate- and silica-rich rock that may preserve signs of ancient shoreline environments.', link: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+  { name: 'Cheyava Falls · Bright Angel formation', meta: 'Neretva Vallis · July 21, 2024 · 22nd core "Sapphire Canyon"', text: '"Leopard spot" textures rich in iron and phosphate. NASA calls it a potential biosignature that needs study on Earth.', link: 'https://www.jpl.nasa.gov/news/nasas-perseverance-rover-scientists-find-intriguing-mars-rock/' }
+];
+$('rockCards').innerHTML = ROCKS.map(r => `<div class="card"><h3>${r.name}</h3><span class="meta">${r.meta}</span><p>${r.text}</p><a href="${r.link}" target="_blank" rel="noopener">NASA source ↗</a></div>`).join('');
+const CHEM = [['SiO₂', 48, 50, 60], ['Al₂O₃', 9.3, 10, 20], ['FeO (total)', 18, 19, 30]];
+$('chem').innerHTML = CHEM.map(([k, lo, hi, max]) => `<div class="crow"><span>${k}</span><div class="ctrack"><i style="left:${lo / max * 100}%;width:${Math.max(1.5, (hi - lo) / max * 100)}%"></i></div><b>${lo}–${hi} wt%</b></div>`).join('') +
+  `<div class="crow"><span>Mg#</span><div class="ctrack"><i style="left:21%;width:4%"></i><i style="left:62%;width:1.5%;background:var(--water)"></i></div><b>21–25 · 62</b></div>
+   <p class="muted">Orange: Máaz lavas (Mg# 21–25). Blue: Séítah olivine cumulate (Mg# 62).</p>`;
+function classify() {
+  const m = num('mgn');
+  $('classOut').innerHTML = m >= 50 ? `<b>Séítah-like:</b> magnesium-rich, olivine cumulate. Formed deep in a magma body.`
+    : m >= 15 ? `<b>Máaz-like:</b> iron-rich basaltic lava from the crater floor.` : `<b>Unusual:</b> outside the ranges measured in Jezero's floor. Worth a closer look.`;
+}
+$('mgn').addEventListener('input', classify);
+function soundCalc() {
+  const d = num('partner');
+  $('soundOut').innerHTML = `Mars: <b>${(d / 240).toFixed(2)} s</b> (low voice) · <b>${(d / 250).toFixed(2)} s</b> (high pitch) · Earth: <b>${(d / 343).toFixed(2)} s</b>. High and low sounds arrive at different times, so speech gets slightly scrambled.`;
+}
+$('partner').addEventListener('input', soundCalc);
+
+/* ================= Comms ================= */
+function updateComms() {
+  const em = earthMars(new Date()), s = em.au * LIGHT_S_PER_AU;
+  $('cDelay').textContent = fmtMin(s); $('cRound').textContent = fmtMin(2 * s);
+  $('radioOut').innerHTML = `On ${B.name}: maximum line-of-sight range ≈ <b>${fmtKm(radioRangeKm())}</b>.`;
+}
+async function loadDsn() {
+  try {
+    const r = await fetch('https://eyes.nasa.gov/dsn/data/dsn.xml?r=' + Date.now());
+    if (!r.ok) throw new Error(r.status);
+    const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+    const names = { gdscc: 'Goldstone (USA)', mdscc: 'Madrid (Spain)', cdscc: 'Canberra (Australia)' };
+    let html = '', site = '';
+    [...xml.documentElement.children].forEach(n => {
+      if (n.tagName === 'station') site = names[n.getAttribute('name')] || n.getAttribute('friendlyName');
+      if (n.tagName === 'dish') {
+        const targets = [...n.getElementsByTagName('target')].map(t => t.getAttribute('name')).filter(x => x && x !== 'DSN' && x !== 'none');
+        if (targets.length) html += `<tr><td>${site}</td><td>${n.getAttribute('name')}</td><td>${[...new Set(targets)].join(', ')}</td></tr>`;
+      }
+    });
+    $('dsn').innerHTML = html ? `<table><thead><tr><th>Complex</th><th>Dish</th><th>Talking to</th></tr></thead><tbody>${html}</tbody></table><p class="muted" style="margin-top:6px">Live from NASA DSN Now.</p>` : 'No active links right now.';
+  } catch (e) {
+    $('dsn').innerHTML = `The live feed can't be read from this page (${e.message}). NASA's three complexes: Goldstone (USA), Madrid (Spain) and Canberra (Australia), spaced so one always faces Mars. <a href="https://eyes.nasa.gov/apps/dsn-now/" target="_blank" rel="noopener">Open DSN Now ↗</a>`;
+  }
+}
+
+
+/* ================= Terrain, traverse, rover, profile ================= */
+let terrainReady = false, TRAV = null, travEntity = null, roverEntity = null, siteMarkers = [], tlTimer = null;
+const exag = () => (terrainReady && $('exagToggle').checked) ? 2.5 : 1;
+async function loadTerrain() {
+  terrainReady = false;
+  if (body !== 'mars') { $('terrainMsg').textContent = ''; return; }
+  const urls = ['terrain', 'https://enomis-dev.github.io/perseverance-traverse-3d/terrain'];
+  for (const u of urls) {
+    try {
+      const tp = await Cesium.CesiumTerrainProvider.fromUrl(u, { requestVertexNormals: true });
+      if (body !== 'mars') return;
+      viewer.terrainProvider = tp; terrainReady = true;
+      viewer.scene.verticalExaggeration = exag();
+      $('terrainMsg').innerHTML = 'Relief: NASA HiRISE (1 m/px) + MOLA elevation of Jezero <span class="tag t-real">NASA DATA</span>';
+      render(); return;
+    } catch (e) { /* try next */ }
+  }
+  $('terrainMsg').textContent = 'Terrain model not available here; showing a smooth globe.';
+}
+async function groundHeight(lat, lng) {
+  if (!terrainReady) return 0;
+  try { const [c] = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [Cesium.Cartographic.fromDegrees(lng, lat)]); return c.height || 0; }
+  catch (e) { return 0; }
+}
+async function loadTraverse() {
+  if (TRAV) return TRAV;
+  try { TRAV = await fetch('assets/traverse.json').then(r => r.json()); } catch (e) { TRAV = []; }
+  return TRAV;
+}
+function solToDate(sol) {
+  const msd = sol + 52304 - 77.45 / 360 + 0.5;
+  const jd = msd * 1.0274912517 + 2405522.0028779 - 69.184 / 86400;
+  return new Date((jd - 2440587.5) * 864e5);
+}
+function drawTraverse(uptoSol) {
+  if (!TRAV || !TRAV.length || body !== 'mars') return;
+  const pts = TRAV.filter(p => p[0] <= uptoSol);
+  if (travEntity) viewer.entities.remove(travEntity);
+  travEntity = pts.length > 1 ? viewer.entities.add({ polyline: {
+    positions: Cesium.Cartesian3.fromDegreesArray(pts.flatMap(p => [p[2], p[1]]), B.ellipsoid), clampToGround: true, width: 4,
+    material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.25, color: Cesium.Color.fromCssColorString('#F5EFE6').withAlpha(0.9) }) } }) : null;
+  if (travEntity) travEntity.show = $('travToggle').checked;
+  const p = pts[pts.length - 1] || TRAV[0], prev = pts[pts.length - 2] || p;
+  const pos = Cesium.Cartesian3.fromDegrees(p[2], p[1], 0, B.ellipsoid);
+  const heading = Math.atan2((p[2] - prev[2]) * Math.cos(toRad(p[1])), p[1] - prev[1]) - Math.PI / 2;
+  const orient = Cesium.Transforms.headingPitchRollQuaternion(pos, new Cesium.HeadingPitchRoll(heading, 0, 0), B.ellipsoid);
+  if (!roverEntity) roverEntity = viewer.entities.add({
+    position: pos, orientation: orient,
+    model: { uri: 'assets/perseverance.glb', minimumPixelSize: 72, maximumScale: 4000, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+    label: { text: 'PERSEVERANCE', font: '700 11px "JetBrains Mono"', fillColor: Cesium.Color.fromCssColorString('#F2A65A'), showBackground: true,
+      backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'), pixelOffset: new Cesium.Cartesian2(0, -46), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1.2e5), ...GROUND }
+  });
+  else { roverEntity.position = pos; roverEntity.orientation = orient; }
+  roverEntity.show = $('travToggle').checked;
+  $('tlText').textContent = `Sol ${p[0]} · ${p[3].toFixed(1)} km driven`;
+  $('tlSub').textContent = `${solToDate(p[0]).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} · NASA Mars 2020 waypoints`;
+}
+function setupExtras() {
+  travEntity = null; roverEntity = null; siteMarkers = [];
+  $('timeline').style.display = body === 'mars' ? 'flex' : 'none';
+  $('siteList').style.display = '';
+  const box = $('siteButtons'); box.innerHTML = '';
+  Object.entries(B.SCI).forEach(([k, v]) => {
+    siteMarkers.push(viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(v.lng, v.lat, 0, B.ellipsoid),
+      billboard: { image: siteIcon(), width: 22, height: 22, ...GROUND, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1.5e5) },
+      label: { text: v.name, font: '600 11px Inter', fillColor: Cesium.Color.fromCssColorString('#F2CF73'), showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#100C16CC'),
+        pixelOffset: new Cesium.Cartesian2(0, -22), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 6e4), ...GROUND }
+    }));
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'site-btn';
+    b.innerHTML = `<b>${v.name}</b><small>${v.sci}${v.sol ? ` · sol ${v.sol}` : ''}</small>`;
+    b.onclick = () => {
+      spinning = false;
+      groundHeight(v.lat, v.lng).then(h => viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(v.lng, v.lat - 0.012, h * exag() + 1800, B.ellipsoid),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }, duration: 3 }));
+      if (!stops.some(s => s.name === v.name)) { stops.push({ ...v }); drill = null; render(); }
+      $('mode').textContent = `${v.name} added to the walk.`;
+    };
+    box.appendChild(b);
+  });
+  if (body === 'mars') loadTraverse().then(() => drawTraverse(parseInt($('tlSol').value, 10)));
+  loadTerrain();
+  viewer.screenSpaceEventHandler.setInputAction(m => {
+    let c = viewer.scene.pickPositionSupported ? viewer.scene.pickPosition(m.endPosition) : null;
+    if (!c) c = viewer.camera.pickEllipsoid(m.endPosition, B.ellipsoid);
+    if (!c) { $('readout').textContent = ''; return; }
+    const g = Cesium.Cartographic.fromCartesian(c, B.ellipsoid);
+    $('readout').textContent = `${Cesium.Math.toDegrees(g.latitude).toFixed(4)}°, ${Cesium.Math.toDegrees(g.longitude).toFixed(4)}°` + (terrainReady ? ` · elev ${Math.round(g.height / exag())} m` : '');
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+}
+let siteIconUrl = null;
+function siteIcon() {
+  if (siteIconUrl) return siteIconUrl;
+  const c = document.createElement('canvas'); c.width = c.height = 44; const x = c.getContext('2d');
+  x.fillStyle = '#100C16'; x.beginPath(); x.arc(22, 22, 20, 0, 7); x.fill();
+  x.strokeStyle = '#F2CF73'; x.lineWidth = 4; x.beginPath(); x.arc(22, 22, 17, 0, 7); x.stroke();
+  x.fillStyle = '#F2CF73'; x.beginPath(); x.moveTo(22, 10); x.lineTo(32, 30); x.lineTo(12, 30); x.closePath(); x.fill();
+  return (siteIconUrl = c.toDataURL());
+}
+$('tlSol').addEventListener('input', e => drawTraverse(parseInt(e.target.value, 10)));
+$('tlPlay').onclick = () => {
+  if (tlTimer) { clearInterval(tlTimer); tlTimer = null; $('tlPlay').textContent = '▶'; return; }
+  const sl = $('tlSol'); if (+sl.value >= +sl.max) sl.value = sl.min;
+  $('tlPlay').textContent = '❚❚';
+  tlTimer = setInterval(() => { sl.value = Math.min(+sl.max, +sl.value + 12); drawTraverse(+sl.value); if (+sl.value >= +sl.max) $('tlPlay').onclick(); }, 60);
+};
+$('travToggle').onchange = e => { if (travEntity) travEntity.show = e.target.checked; if (roverEntity) roverEntity.show = e.target.checked; };
+$('exagToggle').onchange = () => { viewer.scene.verticalExaggeration = exag(); };
+
+let profileSeq = 0;
+function clearProfile() { const c = $('profile'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); $('profileText').textContent = 'Elevation profile appears when you plan a route.'; }
+async function computeProfile(a) {
+  const seq = ++profileSeq;
+  if (!terrainReady) { $('profileText').textContent = 'Elevation profile needs the terrain model.'; return; }
+  const pts = [B.BASE, ...stops, B.BASE], samples = [];
+  let acc = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = dist(pts[i], pts[i + 1]), n = Math.max(2, Math.ceil(d / 0.1));
+    for (let k = 0; k < n; k++) {
+      const f = k / n; samples.push({ lat: pts[i].lat + (pts[i + 1].lat - pts[i].lat) * f, lng: pts[i].lng + (pts[i + 1].lng - pts[i].lng) * f, d: acc + d * f, leg: i });
+    }
+    acc += d;
+  }
+  samples.push({ ...B.BASE, d: acc, leg: pts.length - 2 });
+  if (samples.length > 600) { const step = Math.ceil(samples.length / 600); for (let i = samples.length - 2; i > 0; i--) if (i % step) samples.splice(i, 1); }
+  let res;
+  try { res = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, samples.map(s => Cesium.Cartographic.fromDegrees(s.lng, s.lat))); }
+  catch (e) { return; }
+  if (seq !== profileSeq) return;
+  const h = res.map(c => c.height || 0);
+  let maxSlope = 0, maxAt = 0, gain = 0;
+  for (let i = 1; i < h.length; i++) {
+    const dd = (samples[i].d - samples[i - 1].d) * 1000; if (dd <= 0) continue;
+    const sl = Math.atan(Math.abs(h[i] - h[i - 1]) / dd) * 180 / Math.PI;
+    if (sl > maxSlope) { maxSlope = sl; maxAt = i; }
+    if (h[i] > h[i - 1]) gain += h[i] - h[i - 1];
+  }
+  const c = $('profile'), x = c.getContext('2d'), W = c.width, H = c.height, lo = Math.min(...h), hi = Math.max(...h), span = Math.max(1, hi - lo);
+  x.clearRect(0, 0, W, H);
+  const X = i => 8 + (samples[i].d / acc) * (W - 16), Y = v => H - 14 - ((v - lo) / span) * (H - 34);
+  x.beginPath(); x.moveTo(X(0), H); h.forEach((v, i) => x.lineTo(X(i), Y(v))); x.lineTo(X(h.length - 1), H); x.closePath();
+  const gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#F2A65A88'); gr.addColorStop(1, '#F2A65A08'); x.fillStyle = gr; x.fill();
+  x.beginPath(); h.forEach((v, i) => i ? x.lineTo(X(i), Y(v)) : x.moveTo(X(i), Y(v))); x.strokeStyle = '#F2A65A'; x.lineWidth = 3; x.stroke();
+  x.fillStyle = '#E5533D'; x.beginPath(); x.arc(X(maxAt), Y(h[maxAt]), 6, 0, 7); x.fill();
+  x.fillStyle = '#B4AA9C'; x.font = '600 20px Inter'; x.fillText(`${Math.round(hi)} m`, 12, 22); x.fillText(`${Math.round(lo)} m`, 12, H - 18);
+  const limit = num('slopeMax');
+  $('profileText').innerHTML = `Climb: <b>${Math.round(gain)} m</b> · Steepest section: <b>${maxSlope.toFixed(1)}°</b> <span class="tag t-real">NASA DEM</span>` +
+    (maxSlope > limit ? ` · <span style="color:var(--warn)">steeper than your ${limit}° limit (red dot)</span>` : '');
+  if (maxSlope > limit && last && last.status === 'ok' && !drill) {
+    $('light').style.background = css('--warn'); $('vTitle').textContent = 'Steep terrain'; $('vText').textContent = `Enough oxygen, but one section reaches ${maxSlope.toFixed(0)}°. Reroute around it.`;
+  }
+}
+
+let cine = false;
+$('cineBtn').onclick = () => {
+  cine = !cine; $('cineBtn').classList.toggle('on', cine);
+  ['plan', 'layers', 'readout'].forEach(id => $(id).style.visibility = cine ? 'hidden' : '');
+  if (cine) { spinning = false; if (stops.length) flyRoute(4); }
+};
+/* ================= Boot ================= */
+buildViewer();
+findWindows(); voyager(); updateClock(); updateDose(); classify(); soundCalc(); updateComms(); drawOrrery();
+setInterval(updateClock, 30000);
+loadDonki(); loadDsn();
+render();
+</script>
+</body>
+</html>
